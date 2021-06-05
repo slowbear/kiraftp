@@ -1,5 +1,17 @@
 mod feature;
-mod handle;
+mod file_mode;
+mod info;
+mod list;
+mod login;
+mod quit;
+mod recieve;
+mod send;
+mod transfer;
+mod transfer_mode;
+mod transfer_type;
+mod unknow_command;
+mod wait;
+mod welcome;
 
 use crate::utils::Config;
 use slog::{warn, Logger};
@@ -13,6 +25,8 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
+
+type IOResult = tokio::io::Result<()>;
 
 enum TransferType {
     ASCII,
@@ -81,20 +95,21 @@ impl FTPSession {
                 Some(("TYPE", para)) => self.set_tranfer_type(para.trim_end()).await?,
                 Some(("MODE", para)) => self.set_tranfer_mode(para.trim_end()).await?,
                 Some(("STRU", para)) => self.set_file_struct(para.trim_end()).await?,
+                Some(("PWD", _)) => {}    // TODO: 返回当前目录
+                Some(("CWD", para)) => {} // TODO: 更改当前目录
                 Some(("LIST", para)) => self.list(para.trim_end()).await?,
                 Some(("RETR", para)) => self.send(para.trim_end()).await?,
                 Some(("STOR", para)) => self.recieve(para.trim_end()).await?,
                 Some(("FEAT", _)) => self.list_features().await?,
-                Some(("SYST", _)) => self.print_system_info().await?,
+                Some(("SYST", _)) => self.print_info().await?,
                 Some(("NOOP", _)) => self.wait().await?,
                 Some(("QUIT", _)) => {
-                    self.disconnect().await?;
+                    self.quit().await?;
                     break;
                 }
                 _ => self.unknow_command().await?,
             }
-            // 执行单条指令后强制刷新缓冲区
-            // TODO: 是否有必要？
+            // 执行单条指令后强制刷新缓冲区(TODO: 是否有必要?)
             self.control_stream.flush().await?;
         }
         Ok(())

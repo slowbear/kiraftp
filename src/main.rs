@@ -47,13 +47,13 @@ async fn main() {
                                 info!(session.logger, "Connection from {} closed.", remote.ip())
                             }
                             Err(err) => {
-                                warn!(session.logger, "Error during writing socket: {}", err)
+                                error!(session.logger, "Error during writing socket: {}", err)
                             }
                         }
                     });
                 }
                 Err(err) => {
-                    warn!(logger, "Unexpected connection: {}", err);
+                    error!(logger, "Unexpected connection: {}", err);
                 }
             }
         },
