@@ -7,6 +7,7 @@ pub struct Config {
     pub port: u16,
     pub username: String,
     pub password: String,
+    pub path: String,
 }
 
 impl Config {
@@ -22,6 +23,7 @@ impl Default for Config {
             port: 21,
             username: String::from("root"),
             password: String::from("password"),
+            path: String::from("home"),
         }
     }
 }

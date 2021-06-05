@@ -3,7 +3,12 @@ mod handle;
 
 use crate::utils::Config;
 use slog::{warn, Logger};
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    env::current_dir,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -29,6 +34,9 @@ pub struct FTPSession {
     // 数据连接参数
     transfer: Transfer,
     transfer_type: TransferType,
+    // 目录树
+    virtual_root: PathBuf,
+    current_path: PathBuf,
     // 会话其他参数
     pub logger: Arc<Logger>,
     pub config: Arc<Config>,
@@ -43,6 +51,9 @@ impl FTPSession {
             is_anonymous: false,
             transfer: Transfer::Disable,
             transfer_type: TransferType::Binary,
+            // 仅在执行文件所在文件夹被删除或无权限访问时Panic
+            virtual_root: Path::join(current_dir().unwrap().as_path(), config.path.clone()),
+            current_path: PathBuf::new(),
             logger,
             config,
         }
@@ -70,9 +81,9 @@ impl FTPSession {
                 Some(("TYPE", para)) => self.set_tranfer_type(para.trim_end()).await?,
                 Some(("MODE", para)) => self.set_tranfer_mode(para.trim_end()).await?,
                 Some(("STRU", para)) => self.set_file_struct(para.trim_end()).await?,
-                Some(("LIST", para)) => self.list(para).await?,
-                Some(("RETR", para)) => self.send(para).await?,
-                Some(("STOR", para)) => self.recieve(para).await?,
+                Some(("LIST", para)) => self.list(para.trim_end()).await?,
+                Some(("RETR", para)) => self.send(para.trim_end()).await?,
+                Some(("STOR", para)) => self.recieve(para.trim_end()).await?,
                 Some(("FEAT", _)) => self.list_features().await?,
                 Some(("SYST", _)) => self.print_system_info().await?,
                 Some(("NOOP", _)) => self.wait().await?,

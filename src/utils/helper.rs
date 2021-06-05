@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, SocketAddr};
 
 pub fn parse_addr(addr: &str) -> Option<SocketAddr> {
     let addr: Vec<&str> = addr.split(',').collect();
@@ -7,7 +7,7 @@ pub fn parse_addr(addr: &str) -> Option<SocketAddr> {
     }
     let addr: Vec<u8> = addr.iter().map(|x| x.parse().unwrap()).collect();
     Some(SocketAddr::new(
-        IpAddr::V4(Ipv4Addr::new(addr[0], addr[1], addr[2], addr[3])),
+        (Ipv4Addr::new(addr[0], addr[1], addr[2], addr[3])).into(),
         (addr[4] as u16) << 8 | (addr[5] as u16),
     ))
 }
