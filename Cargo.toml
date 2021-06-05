@@ -1,0 +1,13 @@
+[package]
+name = "creamftp"
+version = "0.1.0"
+authors = ["Slowy <slowyfine@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+tokio = { version = "1.6", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.8"
+slog = "2.7"
+slog-term = "2.8"
+slog-async = "2.6"
