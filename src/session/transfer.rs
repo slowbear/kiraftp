@@ -1,5 +1,5 @@
 use super::{FTPSession, IOResult, Transfer};
-use crate::utils::helper::{parse_addr, print_addr};
+use crate::utils::helper::{parse_ipv4_addr, print_ipv4_addr};
 use slog::debug;
 use std::net::SocketAddr;
 use tokio::{io::AsyncWriteExt, net::TcpListener};
@@ -7,7 +7,7 @@ use tokio::{io::AsyncWriteExt, net::TcpListener};
 impl FTPSession {
     // 主动模式
     pub async fn set_active(&mut self, remote: &str) -> IOResult {
-        let remote = parse_addr(remote);
+        let remote = parse_ipv4_addr(remote);
         self.transfer = match remote {
             Some(remote) => {
                 self.control_stream
@@ -26,7 +26,7 @@ impl FTPSession {
     }
     // 被动模式
     pub async fn set_passive(&mut self) -> IOResult {
-        let listener = TcpListener::bind(SocketAddr::new(self.config.listen.into(), 0)).await?;
+        let listener = TcpListener::bind(SocketAddr::new(self.config.listen, 0)).await?;
         debug!(
             self.logger,
             "Try enter passive mode with {}",
@@ -36,7 +36,7 @@ impl FTPSession {
             .write(
                 format!(
                     "227 Entering Passive Mode {}.\r\n",
-                    print_addr(listener.local_addr()?)
+                    print_ipv4_addr(listener.local_addr()?)
                 )
                 .as_bytes(),
             )

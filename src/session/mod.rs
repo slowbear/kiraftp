@@ -3,6 +3,7 @@ mod file_mode;
 mod info;
 mod list;
 mod login;
+mod pwd;
 mod quit;
 mod recieve;
 mod send;
@@ -95,11 +96,17 @@ impl FTPSession {
                 Some(("TYPE", para)) => self.set_tranfer_type(para.trim_end()).await?,
                 Some(("MODE", para)) => self.set_tranfer_mode(para.trim_end()).await?,
                 Some(("STRU", para)) => self.set_file_struct(para.trim_end()).await?,
-                Some(("PWD", _)) => {}    // TODO: 返回当前目录
-                Some(("CWD", para)) => {} // TODO: 更改当前目录
+                // 以下命令需要登录
+                Some(("PWD", _)) => self.print_working_directory().await?,
+                // TODO: 更改当前目录
+                Some(("CWD", para)) => {}
+                // TODO: 列出当前目录文件
                 Some(("LIST", para)) => self.list(para.trim_end()).await?,
+                // TODO: 下载文件
                 Some(("RETR", para)) => self.send(para.trim_end()).await?,
+                // TODO: 上传文件
                 Some(("STOR", para)) => self.recieve(para.trim_end()).await?,
+                // 以上命令需要登录
                 Some(("FEAT", _)) => self.list_features().await?,
                 Some(("SYST", _)) => self.print_info().await?,
                 Some(("NOOP", _)) => self.wait().await?,
@@ -109,7 +116,7 @@ impl FTPSession {
                 }
                 _ => self.unknow_command().await?,
             }
-            // 执行单条指令后强制刷新缓冲区(TODO: 是否有必要?)
+            // 执行单条指令后强制刷新缓冲区
             self.control_stream.flush().await?;
         }
         Ok(())
