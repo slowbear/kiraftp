@@ -12,7 +12,7 @@ impl FTPSession {
         self.control_stream
             .write(
                 format!(
-                    "257 \"{}/\" is the current directory.\r\n",
+                    "257 \"/{}\" is the current directory.\r\n",
                     self.current_path.to_string_lossy()
                 )
                 .as_bytes(),

@@ -16,8 +16,9 @@ mod wait;
 mod welcome;
 
 use crate::utils::config::Config;
-use slog::{warn, Logger};
+use slog::{debug, warn, Logger};
 use std::{
+    collections::VecDeque,
     env,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -77,14 +78,15 @@ impl FTPSession {
     pub async fn run(&mut self) -> tokio::io::Result<()> {
         self.welcome().await?;
         let mut buffer = [0u8; 1024];
+        let mut byte_stream = VecDeque::<u8>::new();
         let mut command = Vec::<u8>::with_capacity(1024);
         loop {
             let mut pre = b' ';
             command.clear();
             loop {
-                let len = self.control_stream.read(&mut buffer).await?;
-                let buffer = buffer[0..len].into_iter();
-                for &cur in buffer {
+                while !byte_stream.is_empty() {
+                    let &cur = byte_stream.front().unwrap();
+                    byte_stream.pop_front();
                     command.push(cur);
                     if (pre, cur) == (b'\r', b'\n') {
                         break;
@@ -94,19 +96,31 @@ impl FTPSession {
                 if command.ends_with(&[b'\r', b'\n']) || command.len() > 1024 {
                     break;
                 }
+                let len = self.control_stream.read(&mut buffer).await?;
+                // 控制连接已关闭
+                if len == 0 {
+                    return Ok(());
+                }
+                for &cur in buffer[0..len].iter() {
+                    byte_stream.push_back(cur);
+                }
             }
             if !command.ends_with(&[b'\r', b'\n']) {
-                warn!(self.logger, "Recieve unknown command.");
+                warn!(self.logger, "Unknown command recieved.");
                 self.unknow_command().await?;
                 continue;
             }
             // 移除CRLF
             command.pop();
             command.pop();
-            if command.len() >= 4 {
+            // 统一大写处理
+            if command.len() > 4 {
                 command[0..4].make_ascii_uppercase();
+            } else {
+                command.make_ascii_uppercase();
             }
             let command = String::from_utf8_lossy(&command);
+            debug!(self.logger, "Recieve command: {}", command);
             match command.as_bytes() {
                 // 无参数指令
                 b"PASV" => self.set_passive().await?,
@@ -115,6 +129,10 @@ impl FTPSession {
                 b"SYST" => self.print_info().await?,
                 b"NOOP" => self.wait().await?,
                 b"LIST" => self.list("").await?,
+                b"QUIT" => {
+                    self.quit().await?;
+                    break;
+                }
                 // 带参数指令
                 _ => {
                     match command.split_once(' ') {
@@ -126,17 +144,12 @@ impl FTPSession {
                         Some(("STRU", para)) => self.set_file_struct(para).await?,
                         // 以下命令需要登录
                         Some(("CWD", para)) => self.change_working_directory(para).await?,
-                        // TODO: 列出当前目录文件
                         Some(("LIST", para)) => self.list(para).await?,
                         // TODO: 下载文件
                         Some(("RETR", para)) => self.send(para).await?,
                         // TODO: 上传文件
                         Some(("STOR", para)) => self.recieve(para).await?,
                         // 以上命令需要登录
-                        Some(("QUIT", _)) => {
-                            self.quit().await?;
-                            break;
-                        }
                         _ => self.unknow_command().await?,
                     }
                 }

@@ -1,6 +1,5 @@
+use super::{FTPSession, IOResult, Transfer};
 use tokio::io::AsyncWriteExt;
-
-use super::{FTPSession, IOResult};
 
 impl FTPSession {
     pub async fn send(&mut self, path: &str) -> IOResult {
@@ -11,6 +10,17 @@ impl FTPSession {
                 .await?;
             return Ok(());
         }
+        match &self.transfer {
+            Transfer::Active(remote) => {}
+            Transfer::Passive(server) => {}
+            Transfer::Disable => {
+                self.control_stream
+                    .write(b"425 Use PORT or PASV first.\r\n")
+                    .await?;
+            }
+        }
+        // 一次性链接
+        self.transfer = Transfer::Disable;
         Ok(())
     }
 }

@@ -1,7 +1,7 @@
 use super::{FTPSession, IOResult, Transfer};
-use crate::utils::helper::combine;
+use crate::utils::fs::{combine, display, is_dir};
 use slog::{error, warn};
-use std::{net::SocketAddr, os::unix::prelude::*};
+use std::net::SocketAddr;
 use tokio::{
     fs,
     io::AsyncWriteExt,
@@ -19,8 +19,10 @@ impl FTPSession {
         match &self.transfer {
             Transfer::Active(remote) => {
                 let (ip, port) = (self.config.listen, self.config.port - 1);
+                // 此处一般情况不可能Panic
                 let local = TcpSocket::new_v4()?;
-                match local.bind(SocketAddr::new(ip.into(), port)) {
+                local.set_reuseaddr(true)?;
+                match local.bind(SocketAddr::new(ip, port)) {
                     Ok(_) => match local.connect(*remote).await {
                         Ok(mut data_stream) => {
                             self.control_stream
@@ -52,6 +54,9 @@ impl FTPSession {
             }
             Transfer::Passive(server) => match server.accept().await {
                 Ok((mut data_stream, _)) => {
+                    self.control_stream
+                        .write(b"150 Here comes the directory listing.\r\n")
+                        .await?;
                     if let Err(err) = self.list_inner(path, &mut data_stream).await {
                         warn!(self.logger, "Error during list: {}", err);
                         self.control_stream
@@ -80,19 +85,27 @@ impl FTPSession {
         self.transfer = Transfer::Disable;
         Ok(())
     }
+
     // list内部实现
     pub async fn list_inner(&mut self, path: &str, data_stream: &mut TcpStream) -> IOResult {
-        // TODO: 未处理不存在路径
-        let path = combine(&self.virtual_root, &self.current_path, path).unwrap();
+        let path = match combine(&self.virtual_root, &self.current_path, path) {
+            Some(path) => {
+                if is_dir(&path).await {
+                    path
+                } else {
+                    return Ok(());
+                }
+            }
+            None => {
+                return Ok(());
+            }
+        };
         let mut dir = fs::read_dir(path).await?;
-        let mut text = Vec::<u8>::new();
-        // TODO: 完整的ls格式
-        for item in dir.next_entry().await? {
-            text.append(&mut item.file_name().as_bytes().to_vec());
-            text.push(b'\r');
-            text.push(b'\n');
+        while let Some(item) = dir.next_entry().await? {
+            if let Some(description) = display(&item).await {
+                data_stream.write(description.as_bytes()).await?;
+            }
         }
-        data_stream.write(&text).await?;
         Ok(())
     }
 }

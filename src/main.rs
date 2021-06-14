@@ -2,7 +2,7 @@ mod session;
 mod utils;
 
 use session::FTPSession;
-use slog::{debug, error, info, o, warn, Drain, Logger};
+use slog::{error, info, o, warn, Drain, Logger};
 use slog_async::Async;
 use slog_term::{FullFormat, TermDecorator};
 use std::sync::Arc;
@@ -37,11 +37,11 @@ async fn main() {
             Config::default()
         }
     };
-    debug!(logger, "Listening {}:{}", config.listen, config.port);
     let config = Arc::new(config);
     // 启动服务器
     match TcpListener::bind(config.address()).await {
         Ok(server) => loop {
+            info!(logger, "Listening {}:{}", config.listen, config.port);
             match server.accept().await {
                 Ok((stream, remote)) => {
                     info!(logger, "Connection from {} was established.", remote.ip());
@@ -56,7 +56,7 @@ async fn main() {
                                 )
                             }
                             Err(err) => {
-                                error!(session.logger, "Error during writing socket: {}", err)
+                                error!(session.logger, "Unexpected connection closed: {}", err)
                             }
                         }
                     });
@@ -67,7 +67,7 @@ async fn main() {
             }
         },
         Err(err) => {
-            error!(logger, "Listening fail: {}", err);
+            error!(logger, "Failed to Listening: {}", err);
         }
     }
 }
