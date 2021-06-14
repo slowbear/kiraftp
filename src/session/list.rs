@@ -1,6 +1,6 @@
 use super::{FTPSession, IOResult, Transfer};
 use crate::utils::fs::{combine, display, is_dir};
-use slog::{error, warn};
+use slog::error;
 use std::net::SocketAddr;
 use tokio::{
     fs,
@@ -29,7 +29,7 @@ impl FTPSession {
                                 .write(b"150 Here comes the directory listing.\r\n")
                                 .await?;
                             if let Err(err) = self.list_inner(path, &mut data_stream).await {
-                                warn!(self.logger, "Error during list: {}", err);
+                                error!(self.logger, "Error during list: {}", err);
                                 self.control_stream
                                     .write(b"426 Tansfer aborted.\r\n")
                                     .await?;
@@ -40,12 +40,14 @@ impl FTPSession {
                             }
                         }
                         Err(err) => {
-                            error!(self.logger, "Remote connection fail: {}", err);
-                            return Err(err);
+                            error!(self.logger, "Failed to connect to remote: {}", err);
+                            self.control_stream
+                                .write(b"425 Can't open data connection.\r\n")
+                                .await?;
                         }
                     },
                     Err(err) => {
-                        error!(self.logger, "Listen port {} failed: {}", port, err);
+                        error!(self.logger, "Failed to listening port {}: {}", port, err);
                         self.control_stream
                             .write(b"425 Server data connection close.\r\n")
                             .await?;
@@ -58,7 +60,7 @@ impl FTPSession {
                         .write(b"150 Here comes the directory listing.\r\n")
                         .await?;
                     if let Err(err) = self.list_inner(path, &mut data_stream).await {
-                        warn!(self.logger, "Error during list: {}", err);
+                        error!(self.logger, "Error during list: {}", err);
                         self.control_stream
                             .write(b"426 Tansfer aborted.\r\n")
                             .await?;
