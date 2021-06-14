@@ -23,7 +23,7 @@ impl Default for Config {
             port: 21,
             username: String::from("root"),
             password: String::from("password"),
-            path: String::from("home"),
+            path: String::from("/"),
         }
     }
 }

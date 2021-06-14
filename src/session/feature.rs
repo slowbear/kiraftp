@@ -9,7 +9,7 @@ impl FTPSession {
         for &item in FEATURES {
             self.control_stream.write(item.as_bytes()).await?;
         }
-        self.control_stream.write(b"221 End.\r\n").await?;
+        self.control_stream.write(b"221 End\r\n").await?;
         Ok(())
     }
 }

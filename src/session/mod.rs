@@ -11,6 +11,7 @@ mod send;
 mod transfer;
 mod transfer_mode;
 mod transfer_type;
+mod unicode;
 mod unknow_command;
 mod wait;
 mod welcome;
@@ -129,6 +130,8 @@ impl FTPSession {
                 b"SYST" => self.print_info().await?,
                 b"NOOP" => self.wait().await?,
                 b"LIST" => self.list("").await?,
+                // TODO: 完整的OPTS支持
+                b"OPTS UTF8 ON" => self.unicode().await?,
                 b"QUIT" => {
                     self.quit().await?;
                     break;
