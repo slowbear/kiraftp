@@ -1,4 +1,7 @@
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+};
 
 pub fn parse_ipv4_addr(addr: &str) -> Option<SocketAddr> {
     let addr: Vec<&str> = addr.split(',').collect();
@@ -20,4 +23,21 @@ pub fn print_ipv4_addr(addr: SocketAddr) -> String {
         port >> 8,
         port & 0xff
     )
+}
+
+pub fn combine(root: &PathBuf, current: &PathBuf, extra: &str) -> Option<PathBuf> {
+    let extra = Path::new(extra);
+    let path = {
+        let mut path = PathBuf::from(root);
+        if extra.is_absolute() {
+            path.push(extra);
+        } else {
+            path.push(Path::join(current, extra));
+        }
+        path
+    };
+    match path.canonicalize() {
+        Ok(path) => Some(path),
+        Err(_) => None,
+    }
 }

@@ -11,7 +11,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn get_addr(&self) -> SocketAddr {
+    pub fn address(&self) -> SocketAddr {
         SocketAddr::new(self.listen, self.port)
     }
 }

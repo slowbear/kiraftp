@@ -1,3 +1,4 @@
+mod cwd;
 mod feature;
 mod file_mode;
 mod info;
@@ -14,10 +15,10 @@ mod unknow_command;
 mod wait;
 mod welcome;
 
-use crate::utils::Config;
+use crate::utils::config::Config;
 use slog::{warn, Logger};
 use std::{
-    env::current_dir,
+    env,
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
@@ -67,7 +68,7 @@ impl FTPSession {
             transfer: Transfer::Disable,
             transfer_type: TransferType::Binary,
             // 仅在执行文件所在文件夹被删除或无权限访问时Panic
-            virtual_root: Path::join(current_dir().unwrap().as_path(), config.path.clone()),
+            virtual_root: Path::join(env::current_dir().unwrap().as_path(), config.path.clone()),
             current_path: PathBuf::new(),
             logger,
             config,
@@ -75,46 +76,70 @@ impl FTPSession {
     }
     pub async fn run(&mut self) -> tokio::io::Result<()> {
         self.welcome().await?;
-        let mut command_buffer = [0u8; 256];
+        let mut buffer = [0u8; 1024];
+        let mut command = Vec::<u8>::with_capacity(1024);
         loop {
-            let len = self.control_stream.read(&mut command_buffer).await?;
-            let command_buffer = &mut command_buffer[0..len];
-            if !command_buffer.ends_with(&[b'\r', b'\n']) {
-                warn!(self.logger, "Unknown data recieve.");
+            let mut pre = b' ';
+            command.clear();
+            loop {
+                let len = self.control_stream.read(&mut buffer).await?;
+                let buffer = buffer[0..len].into_iter();
+                for &cur in buffer {
+                    command.push(cur);
+                    if (pre, cur) == (b'\r', b'\n') {
+                        break;
+                    }
+                    pre = cur;
+                }
+                if command.ends_with(&[b'\r', b'\n']) || command.len() > 1024 {
+                    break;
+                }
+            }
+            if !command.ends_with(&[b'\r', b'\n']) {
+                warn!(self.logger, "Recieve unknown command.");
                 self.unknow_command().await?;
                 continue;
             }
-            if len >= 6 {
-                command_buffer[0..4].make_ascii_uppercase();
+            // 移除CRLF
+            command.pop();
+            command.pop();
+            if command.len() >= 4 {
+                command[0..4].make_ascii_uppercase();
             }
-            let command = String::from_utf8_lossy(&command_buffer);
-            match command.split_once(|sep: char| sep.is_whitespace()) {
-                Some(("USER", para)) => self.pre_login(para.trim_end()).await?,
-                Some(("PASS", para)) => self.try_login(para.trim_end()).await?,
-                Some(("PORT", para)) => self.set_active(para.trim_end()).await?,
-                Some(("PASV", _)) => self.set_passive().await?,
-                Some(("TYPE", para)) => self.set_tranfer_type(para.trim_end()).await?,
-                Some(("MODE", para)) => self.set_tranfer_mode(para.trim_end()).await?,
-                Some(("STRU", para)) => self.set_file_struct(para.trim_end()).await?,
-                // 以下命令需要登录
-                Some(("PWD", _)) => self.print_working_directory().await?,
-                // TODO: 更改当前目录
-                Some(("CWD", para)) => {}
-                // TODO: 列出当前目录文件
-                Some(("LIST", para)) => self.list(para.trim_end()).await?,
-                // TODO: 下载文件
-                Some(("RETR", para)) => self.send(para.trim_end()).await?,
-                // TODO: 上传文件
-                Some(("STOR", para)) => self.recieve(para.trim_end()).await?,
-                // 以上命令需要登录
-                Some(("FEAT", _)) => self.list_features().await?,
-                Some(("SYST", _)) => self.print_info().await?,
-                Some(("NOOP", _)) => self.wait().await?,
-                Some(("QUIT", _)) => {
-                    self.quit().await?;
-                    break;
+            let command = String::from_utf8_lossy(&command);
+            match command.as_bytes() {
+                // 无参数指令
+                b"PASV" => self.set_passive().await?,
+                b"PWD" => self.print_working_directory().await?,
+                b"FEAT" => self.list_features().await?,
+                b"SYST" => self.print_info().await?,
+                b"NOOP" => self.wait().await?,
+                b"LIST" => self.list("").await?,
+                // 带参数指令
+                _ => {
+                    match command.split_once(' ') {
+                        Some(("USER", para)) => self.pre_login(para).await?,
+                        Some(("PASS", para)) => self.try_login(para).await?,
+                        Some(("PORT", para)) => self.set_active(para).await?,
+                        Some(("TYPE", para)) => self.set_tranfer_type(para).await?,
+                        Some(("MODE", para)) => self.set_tranfer_mode(para).await?,
+                        Some(("STRU", para)) => self.set_file_struct(para).await?,
+                        // 以下命令需要登录
+                        Some(("CWD", para)) => self.change_working_directory(para).await?,
+                        // TODO: 列出当前目录文件
+                        Some(("LIST", para)) => self.list(para).await?,
+                        // TODO: 下载文件
+                        Some(("RETR", para)) => self.send(para).await?,
+                        // TODO: 上传文件
+                        Some(("STOR", para)) => self.recieve(para).await?,
+                        // 以上命令需要登录
+                        Some(("QUIT", _)) => {
+                            self.quit().await?;
+                            break;
+                        }
+                        _ => self.unknow_command().await?,
+                    }
                 }
-                _ => self.unknow_command().await?,
             }
             // 执行单条指令后强制刷新缓冲区
             self.control_stream.flush().await?;

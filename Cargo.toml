@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "1.6", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["io-util"] }
 serde = { version = "1.0", features = ["derive"] }
-path-absolutize = { version = "3.0", features = ["once_cell_cache"] }
 serde_yaml = "0.8"
 slog = "2.7"
 slog-term = "2.8"
