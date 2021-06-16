@@ -148,9 +148,7 @@ impl FTPSession {
                         // 以下命令需要登录
                         Some(("CWD", para)) => self.change_working_directory(para).await?,
                         Some(("LIST", para)) => self.list(para).await?,
-                        // TODO: 下载文件
                         Some(("RETR", para)) => self.send(para).await?,
-                        // TODO: 上传文件
                         Some(("STOR", para)) => self.recieve(para).await?,
                         // 以上命令需要登录
                         _ => self.unknow_command().await?,

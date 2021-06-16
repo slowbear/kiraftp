@@ -12,7 +12,7 @@ impl FTPSession {
             return Ok(());
         }
         match combine(&self.virtual_root, &self.current_path, path) {
-            Some(path) => {
+            Ok(path) => {
                 if is_dir(&path).await {
                     // TODO: 完整的virtual root支持
                     self.current_path = PathBuf::from(
@@ -28,7 +28,7 @@ impl FTPSession {
                         .await?;
                 }
             }
-            None => {
+            Err(_) => {
                 self.control_stream
                     .write(b"550 Failed to change directory.\r\n")
                     .await?;

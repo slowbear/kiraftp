@@ -29,7 +29,7 @@ impl FTPSession {
                                 .write(b"150 Here comes the directory listing.\r\n")
                                 .await?;
                             if let Err(err) = self.list_inner(path, &mut data_stream).await {
-                                error!(self.logger, "Error during list: {}", err);
+                                error!(self.logger, "Error during LIST: {}", err);
                                 self.control_stream
                                     .write(b"426 Tansfer aborted.\r\n")
                                     .await?;
@@ -88,17 +88,16 @@ impl FTPSession {
         Ok(())
     }
 
-    // list内部实现
     pub async fn list_inner(&mut self, path: &str, data_stream: &mut TcpStream) -> IOResult {
         let path = match combine(&self.virtual_root, &self.current_path, path) {
-            Some(path) => {
+            Ok(path) => {
                 if is_dir(&path).await {
                     path
                 } else {
                     return Ok(());
                 }
             }
-            None => {
+            Err(_) => {
                 return Ok(());
             }
         };

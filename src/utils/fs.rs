@@ -2,7 +2,7 @@ use chrono::{DateTime, Local};
 use libc::*;
 use std::{
     os::unix::prelude::*,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 use tokio::fs::{self, DirEntry};
 
@@ -14,7 +14,7 @@ pub async fn is_dir(path: impl AsRef<Path>) -> bool {
         .unwrap_or(false)
 }
 
-pub fn combine(root: &PathBuf, current: &PathBuf, extra: &str) -> Option<PathBuf> {
+pub fn combine(root: &PathBuf, current: &PathBuf, extra: &str) -> std::io::Result<PathBuf> {
     let extra = Path::new(extra);
     let path = {
         let mut path = PathBuf::from(root);
@@ -25,10 +25,7 @@ pub fn combine(root: &PathBuf, current: &PathBuf, extra: &str) -> Option<PathBuf
         }
         path
     };
-    match path.canonicalize() {
-        Ok(path) => Some(path),
-        Err(_) => None,
-    }
+    path.canonicalize()
 }
 
 pub async fn display(item: &DirEntry) -> Option<String> {
@@ -92,4 +89,31 @@ fn file_type(mode: u32) -> String {
         "-"
     }
     .to_string()
+}
+
+pub fn normalize_path(path: &Path) -> PathBuf {
+    let mut components = path.components().peekable();
+    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+        components.next();
+        PathBuf::from(c.as_os_str())
+    } else {
+        PathBuf::new()
+    };
+
+    for component in components {
+        match component {
+            Component::Prefix(..) => unreachable!(),
+            Component::RootDir => {
+                ret.push(component.as_os_str());
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                ret.pop();
+            }
+            Component::Normal(c) => {
+                ret.push(c);
+            }
+        }
+    }
+    ret
 }
