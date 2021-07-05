@@ -1,16 +1,17 @@
 [package]
-name = "tryftp"
-version = "0.1.0"
+name = "kiraftp"
+version = "1.0.0"
 authors = ["Slowy <slowyfine@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-tokio = { version = "1.6", features = ["full"] }
-tokio-stream = { version = "0.1", features = ["io-util"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.8"
-slog = "2.7"
-slog-term = "2.8"
-slog-async = "2.6"
-libc = "0.2"
-chrono = "0.4"
+tokio = { version="^1.8", features=["full"] }
+tokio-stream = { version="^0.1", features=["io-util"] }
+serde = { version="^1.0", features=["derive"] }
+serde_yaml = "^0.8"
+slog = "^2.7"
+slog-term = "^2.8"
+slog-async = "^2.6"
+libc = "^0.2"
+chrono = "^0.4"
+users = "^0.11"

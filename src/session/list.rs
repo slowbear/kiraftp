@@ -1,5 +1,5 @@
-use super::{FTPSession, IOResult, Transfer};
-use crate::utils::fs::{combine, display, is_dir};
+use super::{FTPSession, IOResult, TransferMod};
+use crate::utils::fs::display;
 use slog::error;
 use std::net::SocketAddr;
 use tokio::{
@@ -16,10 +16,9 @@ impl FTPSession {
                 .await?;
             return Ok(());
         }
-        match &self.transfer {
-            Transfer::Active(remote) => {
+        match &self.transfer_mode {
+            TransferMod::Active(remote) => {
                 let (ip, port) = (self.config.listen, self.config.port - 1);
-                // 此处一般情况不可能Panic
                 let local = TcpSocket::new_v4()?;
                 local.set_reuseaddr(true)?;
                 match local.bind(SocketAddr::new(ip, port)) {
@@ -54,7 +53,7 @@ impl FTPSession {
                     }
                 }
             }
-            Transfer::Passive(server) => match server.accept().await {
+            TransferMod::Passive(server) => match server.accept().await {
                 Ok((mut data_stream, _)) => {
                     self.control_stream
                         .write(b"150 Here comes the directory listing.\r\n")
@@ -77,30 +76,19 @@ impl FTPSession {
                         .await?;
                 }
             },
-            Transfer::Disable => {
+            TransferMod::Disable => {
                 self.control_stream
                     .write(b"425 Use PORT or PASV first.\r\n")
                     .await?;
             }
         }
         // 一次性链接
-        self.transfer = Transfer::Disable;
+        self.transfer_mode = TransferMod::Disable;
         Ok(())
     }
 
     pub async fn list_inner(&mut self, path: &str, data_stream: &mut TcpStream) -> IOResult {
-        let path = match combine(&self.virtual_root, &self.current_path, path) {
-            Ok(path) => {
-                if is_dir(&path).await {
-                    path
-                } else {
-                    return Ok(());
-                }
-            }
-            Err(_) => {
-                return Ok(());
-            }
-        };
+        let path = self.current_path.join(path);
         let mut dir = fs::read_dir(path).await?;
         while let Some(item) = dir.next_entry().await? {
             if let Some(description) = display(&item).await {

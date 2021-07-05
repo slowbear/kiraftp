@@ -1,6 +1,7 @@
 mod cwd;
-mod feature;
-mod file_mode;
+mod features;
+mod file_struct;
+mod format;
 mod info;
 mod list;
 mod login;
@@ -8,7 +9,6 @@ mod pwd;
 mod quit;
 mod recieve;
 mod send;
-mod transfer;
 mod transfer_mode;
 mod transfer_type;
 mod unicode;
@@ -18,13 +18,7 @@ mod welcome;
 
 use crate::utils::config::Config;
 use slog::{debug, warn, Logger};
-use std::{
-    collections::VecDeque,
-    env,
-    net::SocketAddr,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{cmp::min, collections::VecDeque, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -37,7 +31,7 @@ enum TransferType {
     Binary,
 }
 
-enum Transfer {
+enum TransferMod {
     Active(SocketAddr),
     Passive(TcpListener),
     Disable,
@@ -50,10 +44,9 @@ pub struct FTPSession {
     is_loggined: bool,
     is_anonymous: bool,
     // 数据连接参数
-    transfer: Transfer,
+    transfer_mode: TransferMod,
     transfer_type: TransferType,
-    // 目录树
-    virtual_root: PathBuf,
+    // 当前目录
     current_path: PathBuf,
     // 会话其他参数
     pub logger: Arc<Logger>,
@@ -67,22 +60,20 @@ impl FTPSession {
             current_user: String::new(),
             is_loggined: false,
             is_anonymous: false,
-            transfer: Transfer::Disable,
-            transfer_type: TransferType::Binary,
-            // 仅在执行文件所在文件夹被删除或无权限访问时Panic
-            virtual_root: Path::join(env::current_dir().unwrap().as_path(), config.path.clone()),
-            current_path: PathBuf::new(),
+            transfer_mode: TransferMod::Disable,
+            transfer_type: TransferType::ASCII,
+            current_path: config.path.clone(),
             logger,
             config,
         }
     }
     pub async fn run(&mut self) -> tokio::io::Result<()> {
         self.welcome().await?;
-        let mut buffer = [0u8; 1024];
-        let mut byte_stream = VecDeque::<u8>::new();
-        let mut command = Vec::<u8>::with_capacity(1024);
+        let mut buffer = [0; 1024];
+        let mut byte_stream = VecDeque::with_capacity(1024);
+        let mut command = Vec::with_capacity(1024);
         loop {
-            let mut pre = b' ';
+            let mut pre = 0;
             command.clear();
             loop {
                 while !byte_stream.is_empty() {
@@ -98,7 +89,6 @@ impl FTPSession {
                     break;
                 }
                 let len = self.control_stream.read(&mut buffer).await?;
-                // 控制连接已关闭
                 if len == 0 {
                     return Ok(());
                 }
@@ -115,49 +105,35 @@ impl FTPSession {
             command.pop();
             command.pop();
             // 统一大写处理
-            if command.len() > 4 {
-                command[0..4].make_ascii_uppercase();
-            } else {
-                command.make_ascii_uppercase();
-            }
+            let len = command.len();
+            command[0..min(len, 4)].make_ascii_uppercase();
             let command = String::from_utf8_lossy(&command);
             debug!(self.logger, "Recieve command: {}", command);
             match command.as_bytes() {
-                // 无参数指令
                 b"PASV" => self.set_passive().await?,
                 b"PWD" => self.print_working_directory().await?,
                 b"FEAT" => self.list_features().await?,
                 b"SYST" => self.print_info().await?,
                 b"NOOP" => self.wait().await?,
                 b"LIST" => self.list("").await?,
-                // TODO: 完整的OPTS支持
                 b"OPTS UTF8 ON" => self.unicode().await?,
-                b"QUIT" => {
-                    self.quit().await?;
-                    break;
-                }
-                // 带参数指令
-                _ => {
-                    match command.split_once(' ') {
-                        Some(("USER", para)) => self.pre_login(para).await?,
-                        Some(("PASS", para)) => self.try_login(para).await?,
-                        Some(("PORT", para)) => self.set_active(para).await?,
-                        Some(("TYPE", para)) => self.set_tranfer_type(para).await?,
-                        Some(("MODE", para)) => self.set_tranfer_mode(para).await?,
-                        Some(("STRU", para)) => self.set_file_struct(para).await?,
-                        // 以下命令需要登录
-                        Some(("CWD", para)) => self.change_working_directory(para).await?,
-                        Some(("LIST", para)) => self.list(para).await?,
-                        Some(("RETR", para)) => self.send(para).await?,
-                        Some(("STOR", para)) => self.recieve(para).await?,
-                        // 以上命令需要登录
-                        _ => self.unknow_command().await?,
-                    }
-                }
+                b"QUIT" => return self.quit().await,
+                _ => match command.split_once(' ') {
+                    Some(("USER", para)) => self.pre_login(para).await?,
+                    Some(("PASS", para)) => self.try_login(para).await?,
+                    Some(("PORT", para)) => self.set_active(para).await?,
+                    Some(("TYPE", para)) => self.set_tranfer_type(para).await?,
+                    Some(("MODE", para)) => self.set_tranfer_mode(para).await?,
+                    Some(("STRU", para)) => self.set_file_struct(para).await?,
+                    Some(("CWD", para)) => self.change_working_directory(para).await?,
+                    Some(("LIST", para)) => self.list(para).await?,
+                    Some(("RETR", para)) => self.send(para).await?,
+                    Some(("STOR", para)) => self.recieve(para).await?,
+                    _ => self.unknow_command().await?,
+                },
             }
             // 执行单条指令后强制刷新缓冲区
             self.control_stream.flush().await?;
         }
-        Ok(())
     }
 }

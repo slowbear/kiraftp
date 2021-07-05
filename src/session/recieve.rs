@@ -1,6 +1,6 @@
-use super::{FTPSession, IOResult, Transfer, TransferType};
+use super::{FTPSession, IOResult, TransferMod, TransferType};
 use slog::error;
-use std::{net::SocketAddr, path::Path};
+use std::net::SocketAddr;
 use tokio::{
     fs::OpenOptions,
     io::{AsyncReadExt, AsyncWriteExt},
@@ -15,10 +15,9 @@ impl FTPSession {
                 .await?;
             return Ok(());
         }
-        match &self.transfer {
-            Transfer::Active(remote) => {
+        match &self.transfer_mode {
+            TransferMod::Active(remote) => {
                 let (ip, port) = (self.config.listen, self.config.port - 1);
-                // 此处一般情况不可能Panic
                 let local = TcpSocket::new_v4()?;
                 local.set_reuseaddr(true)?;
                 match local.bind(SocketAddr::new(ip, port)) {
@@ -53,7 +52,7 @@ impl FTPSession {
                     }
                 }
             }
-            Transfer::Passive(server) => match server.accept().await {
+            TransferMod::Passive(server) => match server.accept().await {
                 Ok((mut data_stream, _)) => {
                     self.control_stream
                         .write(b"150 Ok to send data.\r\n")
@@ -76,23 +75,22 @@ impl FTPSession {
                         .await?;
                 }
             },
-            Transfer::Disable => {
+            TransferMod::Disable => {
                 self.control_stream
                     .write(b"425 Use PORT or PASV first.\r\n")
                     .await?;
             }
         }
         // 一次性链接
-        self.transfer = Transfer::Disable;
+        self.transfer_mode = TransferMod::Disable;
         Ok(())
     }
 
     pub async fn recieve_inner(&mut self, path: &str, data_stream: &mut TcpStream) -> IOResult {
-        // TODO: 规范化路径
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
-            .open(Path::join(&self.current_path, path))
+            .open(self.current_path.join(path))
             .await?;
         match self.transfer_type {
             TransferType::ASCII => {

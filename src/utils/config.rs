@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, SocketAddr};
+use std::{
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+};
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
@@ -7,7 +10,7 @@ pub struct Config {
     pub port: u16,
     pub username: String,
     pub password: String,
-    pub path: String,
+    pub path: PathBuf,
 }
 
 impl Config {
@@ -23,7 +26,7 @@ impl Default for Config {
             port: 21,
             username: String::from("root"),
             password: String::from("password"),
-            path: String::from("/"),
+            path: PathBuf::from("/"),
         }
     }
 }

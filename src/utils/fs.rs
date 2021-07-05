@@ -1,10 +1,8 @@
 use chrono::{DateTime, Local};
 use libc::*;
-use std::{
-    os::unix::prelude::*,
-    path::{Component, Path, PathBuf},
-};
+use std::{os::unix::prelude::*, path::Path};
 use tokio::fs::{self, DirEntry};
+use users::{get_group_by_gid, get_user_by_uid};
 
 #[inline(always)]
 pub async fn is_dir(path: impl AsRef<Path>) -> bool {
@@ -14,35 +12,31 @@ pub async fn is_dir(path: impl AsRef<Path>) -> bool {
         .unwrap_or(false)
 }
 
-pub fn combine(root: &PathBuf, current: &PathBuf, extra: &str) -> std::io::Result<PathBuf> {
-    let extra = Path::new(extra);
-    let path = {
-        let mut path = PathBuf::from(root);
-        if extra.is_absolute() {
-            path.push(extra);
-        } else {
-            path.push(Path::join(current, extra));
-        }
-        path
-    };
-    path.canonicalize()
-}
-
 pub async fn display(item: &DirEntry) -> Option<String> {
     match item.metadata().await {
         Ok(metadata) => {
-            let size = metadata.size();
-            // 仅Unix支持获取修改时间
-            let modified: DateTime<Local> = DateTime::from(metadata.modified().unwrap());
             let mode = parse_permissions(metadata.permissions().mode());
-            let name = item.file_name().into_string().unwrap();
-            Some(format!(
-                "{} {:>10} {} {}\r\n",
-                mode,
-                size,
-                modified.format("%b %d %H:%M").to_string(),
-                name
-            ))
+            let nlink = metadata.nlink();
+            let user = get_user_by_uid(metadata.uid()).unwrap();
+            let user = user.name().to_string_lossy();
+            let group = get_group_by_gid(metadata.gid()).unwrap();
+            let group = group.name().to_string_lossy();
+            let size = metadata.size();
+            let modified = DateTime::<Local>::from(metadata.modified().unwrap())
+                .format("%b %d %H:%M")
+                .to_string();
+            let filename = item.file_name().into_string().unwrap();
+            Some(if filename.contains(' ') {
+                format!(
+                    "{} {} {} {} {} {} '{}'\r\n",
+                    mode, nlink, user, group, size, modified, filename
+                )
+            } else {
+                format!(
+                    "{} {} {} {} {} {} {}\r\n",
+                    mode, nlink, user, group, size, modified, filename
+                )
+            })
         }
         Err(_) => None,
     }
@@ -73,47 +67,14 @@ fn triplet(mode: u32, read: u32, write: u32, execute: u32) -> String {
 
 #[inline(always)]
 fn file_type(mode: u32) -> String {
-    if mode & S_IFMT == S_IFDIR {
-        "d"
-    } else if mode & S_IFMT == S_IFLNK {
-        "l"
-    } else if mode & S_IFMT == S_IFSOCK {
-        "s"
-    } else if mode & S_IFMT == S_IFBLK {
-        "b"
-    } else if mode & S_IFMT == S_IFCHR {
-        "c"
-    } else if mode & S_IFMT == S_IFIFO {
-        "p"
-    } else {
-        "-"
+    match mode & S_IFMT {
+        S_IFDIR => "d",
+        S_IFLNK => "l",
+        S_IFSOCK => "s",
+        S_IFBLK => "b",
+        S_IFCHR => "c",
+        S_IFIFO => "p",
+        _ => "-",
     }
     .to_string()
-}
-
-pub fn normalize_path(path: &Path) -> PathBuf {
-    let mut components = path.components().peekable();
-    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
-        components.next();
-        PathBuf::from(c.as_os_str())
-    } else {
-        PathBuf::new()
-    };
-
-    for component in components {
-        match component {
-            Component::Prefix(..) => unreachable!(),
-            Component::RootDir => {
-                ret.push(component.as_os_str());
-            }
-            Component::CurDir => {}
-            Component::ParentDir => {
-                ret.pop();
-            }
-            Component::Normal(c) => {
-                ret.push(c);
-            }
-        }
-    }
-    ret
 }

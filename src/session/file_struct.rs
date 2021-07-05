@@ -2,7 +2,7 @@ use super::{FTPSession, IOResult};
 use tokio::io::AsyncWriteExt;
 
 impl FTPSession {
-    // 只支持F(File)结构，与主流FTP服务器一至
+    // 只支持F(File)结构，简化实现
     pub async fn set_file_struct(&mut self, stru: &str) -> IOResult {
         self.control_stream
             .write(if stru == "F" {

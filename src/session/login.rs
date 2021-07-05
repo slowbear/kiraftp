@@ -16,7 +16,11 @@ impl FTPSession {
         Ok(())
     }
     pub async fn try_login(&mut self, password: &str) -> IOResult {
-        if self.current_user == "anonymous" {
+        if self.is_loggined {
+            self.control_stream
+                .write(b"230 Already logged in.\r\n")
+                .await?;
+        } else if self.current_user == "anonymous" {
             self.control_stream
                 .write(b"230 Login successfully.\r\n")
                 .await?;
