@@ -1,3 +1,6 @@
+// Copyright 2021 Slowy <slowyfine@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
 mod cwd;
 mod features;
 mod file_struct;

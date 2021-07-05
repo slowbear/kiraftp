@@ -1,3 +1,6 @@
+// Copyright 2021 Slowy <slowyfine@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use super::{FTPSession, IOResult};
 use crate::utils::fs::is_dir;
 use tokio::io::AsyncWriteExt;

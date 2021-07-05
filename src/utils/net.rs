@@ -1,3 +1,6 @@
+// Copyright 2021 Slowy <slowyfine@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use std::net::SocketAddr;
 
 pub fn parse_ipv4_addr(addr: &str) -> Option<SocketAddr> {

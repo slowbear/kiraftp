@@ -1,3 +1,6 @@
+// Copyright 2021 Slowy <slowyfine@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use chrono::{DateTime, Local};
 use libc::*;
 use std::{os::unix::prelude::*, path::Path};

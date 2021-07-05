@@ -1,3 +1,6 @@
+// Copyright 2021 Slowy <slowyfine@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use super::{FTPSession, IOResult, TransferMod};
 use crate::utils::net::{parse_ipv4_addr, print_ipv4_addr};
 use slog::debug;

@@ -1,3 +1,6 @@
+// Copyright 2021 Slowy <slowyfine@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use super::{FTPSession, IOResult, TransferMod};
 use crate::utils::fs::display;
 use slog::error;
