@@ -96,7 +96,7 @@ impl FTPSession {
             .await?;
         match self.transfer_type {
             TransferType::ASCII => {
-                let mut buffer = [0u8; 32768];
+                let mut buffer = [0; 32768];
                 loop {
                     let len = file.read(&mut buffer).await?;
                     if len == 0 {
@@ -112,7 +112,7 @@ impl FTPSession {
                 }
             }
             TransferType::Binary => {
-                let mut buffer = [0u8; 32768];
+                let mut buffer = [0; 32768];
                 loop {
                     let len = file.read(&mut buffer).await?;
                     if len == 0 {

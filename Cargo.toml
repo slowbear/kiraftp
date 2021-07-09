@@ -3,6 +3,7 @@ name = "kiraftp"
 version = "1.0.0"
 authors = ["Slowy <slowyfine@gmail.com>"]
 edition = "2018"
+license = "GPL-3.0-only"
 
 [dependencies]
 tokio = { version="^1.8", features=["full"] }

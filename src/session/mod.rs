@@ -21,7 +21,7 @@ mod welcome;
 
 use crate::utils::config::Config;
 use slog::{debug, warn, Logger};
-use std::{cmp::min, collections::VecDeque, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{cmp, collections::VecDeque, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -109,7 +109,7 @@ impl FTPSession {
             command.pop();
             // 统一大写处理
             let len = command.len();
-            command[0..min(len, 4)].make_ascii_uppercase();
+            command[0..cmp::min(len, 4)].make_ascii_uppercase();
             let command = String::from_utf8_lossy(&command);
             debug!(self.logger, "Receive command: {}", command);
             match command.as_bytes() {
