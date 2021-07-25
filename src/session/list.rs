@@ -12,13 +12,15 @@ use tokio::{
 };
 
 impl FTPSession {
-    pub async fn list(&mut self, path: &str) -> IOResult {
+    pub async fn list(&mut self, opts: &str) -> IOResult {
         if !self.is_loggined {
             self.control_stream
                 .write(b"530 Please login with USER and PASS.\r\n")
                 .await?;
             return Ok(());
         }
+        // Hack for nautils, ignore all options.
+        let path = opts.split(' ').find(|x| !x.starts_with('-')).unwrap_or("");
         match &self.transfer_mode {
             TransferMod::Active(remote) => {
                 let (ip, port) = (self.config.listen, self.config.port - 1);
@@ -33,7 +35,7 @@ impl FTPSession {
                             if let Err(err) = self.list_inner(path, &mut data_stream).await {
                                 error!(self.logger, "Error during LIST: {}", err);
                                 self.control_stream
-                                    .write(b"426 Tansfer aborted.\r\n")
+                                    .write(b"426 Transfer aborted.\r\n")
                                     .await?;
                             } else {
                                 self.control_stream
@@ -64,7 +66,7 @@ impl FTPSession {
                     if let Err(err) = self.list_inner(path, &mut data_stream).await {
                         error!(self.logger, "Error during list: {}", err);
                         self.control_stream
-                            .write(b"426 Tansfer aborted.\r\n")
+                            .write(b"426 Transfer aborted.\r\n")
                             .await?;
                     } else {
                         self.control_stream
@@ -75,7 +77,7 @@ impl FTPSession {
                 Err(err) => {
                     error!(self.logger, "Unexpected data connection: {}", err);
                     self.control_stream
-                        .write(b"426 Tansfer aborted.\r\n")
+                        .write(b"426 Transfer aborted.\r\n")
                         .await?;
                 }
             },

@@ -11,7 +11,7 @@ use tokio::{
 };
 
 impl FTPSession {
-    pub async fn recieve(&mut self, path: &str) -> IOResult {
+    pub async fn receive(&mut self, path: &str) -> IOResult {
         if !self.is_loggined {
             self.control_stream
                 .write(b"530 Please login with USER and PASS.\r\n")
@@ -29,10 +29,10 @@ impl FTPSession {
                             self.control_stream
                                 .write(b"150 Ok to send data.\r\n")
                                 .await?;
-                            if let Err(err) = self.recieve_inner(path, &mut data_stream).await {
-                                error!(self.logger, "Error during recieve: {}", err);
+                            if let Err(err) = self.receive_inner(path, &mut data_stream).await {
+                                error!(self.logger, "Error during receive: {}", err);
                                 self.control_stream
-                                    .write(b"426 Tansfer aborted.\r\n")
+                                    .write(b"426 Transfer aborted.\r\n")
                                     .await?;
                             } else {
                                 self.control_stream
@@ -60,10 +60,10 @@ impl FTPSession {
                     self.control_stream
                         .write(b"150 Ok to send data.\r\n")
                         .await?;
-                    if let Err(err) = self.recieve_inner(path, &mut data_stream).await {
-                        error!(self.logger, "Error during recieve: {}", err);
+                    if let Err(err) = self.receive_inner(path, &mut data_stream).await {
+                        error!(self.logger, "Error during receive: {}", err);
                         self.control_stream
-                            .write(b"426 Tansfer aborted.\r\n")
+                            .write(b"426 Transfer aborted.\r\n")
                             .await?;
                     } else {
                         self.control_stream
@@ -74,7 +74,7 @@ impl FTPSession {
                 Err(err) => {
                     error!(self.logger, "Unexpected data connection: {}", err);
                     self.control_stream
-                        .write(b"426 Tansfer aborted.\r\n")
+                        .write(b"426 Transfer aborted.\r\n")
                         .await?;
                 }
             },
@@ -89,7 +89,7 @@ impl FTPSession {
         Ok(())
     }
 
-    pub async fn recieve_inner(&mut self, path: &str, data_stream: &mut TcpStream) -> IOResult {
+    pub async fn receive_inner(&mut self, path: &str, data_stream: &mut TcpStream) -> IOResult {
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)

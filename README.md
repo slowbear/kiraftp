@@ -6,7 +6,7 @@ A crude FTP server
 
 TODO:
 
-- [ ] 支持 Nautils
+- [x] 支持 Nautils
 - [ ] 支持 Chroot
 - [ ] 更多命令
 - [ ] 性能优化

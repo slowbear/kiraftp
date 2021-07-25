@@ -6,7 +6,7 @@ use tokio::io::AsyncWriteExt;
 
 impl FTPSession {
     // 只支持S(Stream)模式，简化实现
-    pub async fn set_tranfer_mode(&mut self, mode: &str) -> IOResult {
+    pub async fn set_transfer_mode(&mut self, mode: &str) -> IOResult {
         let mode = mode.to_ascii_uppercase();
         self.control_stream
             .write(if mode == "S" {
