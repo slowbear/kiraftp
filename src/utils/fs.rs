@@ -4,12 +4,11 @@
 use chrono::{DateTime, Local};
 use libc::*;
 use std::{os::unix::prelude::*, path::Path};
-use tokio::fs::{self, DirEntry};
-use users::{get_group_by_gid, get_user_by_uid};
+use tokio::fs::{self as tokiofs, DirEntry};
 
 #[inline(always)]
 pub async fn is_dir(path: impl AsRef<Path>) -> bool {
-    fs::metadata(&path)
+    tokiofs::metadata(path)
         .await
         .map(|meta| meta.is_dir())
         .unwrap_or(false)
@@ -20,9 +19,9 @@ pub async fn display(item: &DirEntry) -> Option<String> {
         Ok(metadata) => {
             let mode = parse_permissions(metadata.permissions().mode());
             let nlink = metadata.nlink();
-            let user = get_user_by_uid(metadata.uid()).unwrap();
+            let user = users::get_user_by_uid(metadata.uid()).unwrap();
             let user = user.name().to_string_lossy();
-            let group = get_group_by_gid(metadata.gid()).unwrap();
+            let group = users::get_group_by_gid(metadata.gid()).unwrap();
             let group = group.name().to_string_lossy();
             let size = metadata.size();
             let modified = DateTime::<Local>::from(metadata.modified().unwrap())
@@ -53,8 +52,7 @@ fn parse_permissions(mode: u32) -> String {
     [prop, user, group, other].join("")
 }
 
-#[inline(always)]
-fn triplet(mode: u32, read: u32, write: u32, execute: u32) -> String {
+fn triplet(mode: u32, read: u32, write: u32, execute: u32) -> &'static str {
     match (mode & read, mode & write, mode & execute) {
         (0, 0, 0) => "---",
         (_, 0, 0) => "r--",
@@ -65,11 +63,9 @@ fn triplet(mode: u32, read: u32, write: u32, execute: u32) -> String {
         (0, _, _) => "-wx",
         (_, _, _) => "rwx",
     }
-    .to_string()
 }
 
-#[inline(always)]
-fn file_type(mode: u32) -> String {
+fn file_type(mode: u32) -> &'static str {
     match mode & S_IFMT {
         S_IFDIR => "d",
         S_IFLNK => "l",
@@ -79,5 +75,4 @@ fn file_type(mode: u32) -> String {
         S_IFIFO => "p",
         _ => "-",
     }
-    .to_string()
 }

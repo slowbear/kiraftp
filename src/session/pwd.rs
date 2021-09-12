@@ -1,12 +1,12 @@
 // Copyright 2021 Slowy <slowyfine@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use super::{FTPSession, IOResult};
+use super::FTPSession;
 use tokio::io::AsyncWriteExt;
 
 impl FTPSession {
-    pub async fn print_working_directory(&mut self) -> IOResult {
-        if !self.is_loggined {
+    pub async fn print_working_directory(&mut self) -> tokio::io::Result<()> {
+        if !self.is_logged_in {
             self.control_stream
                 .write(b"530 Please login with USER and PASS.\r\n")
                 .await?;

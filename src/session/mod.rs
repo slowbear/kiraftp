@@ -3,8 +3,8 @@
 
 mod cwd;
 mod features;
+mod file_format;
 mod file_struct;
-mod format;
 mod info;
 mod list;
 mod login;
@@ -21,16 +21,25 @@ mod welcome;
 
 use crate::utils::config::Config;
 use slog::{debug, warn, Logger};
-use std::{cmp, collections::VecDeque, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{collections::VecDeque, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
 
-type IOResult = tokio::io::Result<()>;
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn get_session_size() {
+        println!(
+            "FTP Session Size: {}",
+            std::mem::size_of::<super::FTPSession>()
+        )
+    }
+}
 
 enum TransferType {
-    ASCII,
+    Ascii,
     Binary,
 }
 
@@ -41,17 +50,13 @@ enum TransferMod {
 }
 
 pub struct FTPSession {
-    // 控制连接参数
     control_stream: TcpStream,
     current_user: String,
-    is_loggined: bool,
+    is_logged_in: bool,
     is_anonymous: bool,
-    // 数据连接参数
     transfer_mode: TransferMod,
     transfer_type: TransferType,
-    // 当前目录
     current_path: PathBuf,
-    // 会话其他参数
     pub logger: Arc<Logger>,
     pub config: Arc<Config>,
 }
@@ -61,15 +66,16 @@ impl FTPSession {
         Self {
             control_stream,
             current_user: String::new(),
-            is_loggined: false,
+            is_logged_in: false,
             is_anonymous: false,
             transfer_mode: TransferMod::Disable,
-            transfer_type: TransferType::ASCII,
+            transfer_type: TransferType::Ascii,
             current_path: config.path.clone(),
             logger,
             config,
         }
     }
+
     pub async fn run(&mut self) -> tokio::io::Result<()> {
         self.welcome().await?;
         let mut buffer = [0; 1024];
@@ -100,18 +106,20 @@ impl FTPSession {
                 }
             }
             if !command.ends_with(&[b'\r', b'\n']) {
-                warn!(self.logger, "Unknown command recieved.");
+                warn!(self.logger, "Unknown command received.");
                 self.unknown_command().await?;
                 continue;
             }
-            // 移除CRLF
             command.pop();
             command.pop();
-            // 统一大写处理
             let len = command.len();
-            command[0..cmp::min(len, 4)].make_ascii_uppercase();
+            debug!(
+                self.logger,
+                "Receive command: {}",
+                String::from_utf8_lossy(&command)
+            );
+            command[0..std::cmp::min(len, 4)].make_ascii_uppercase();
             let command = String::from_utf8_lossy(&command);
-            debug!(self.logger, "Receive command: {}", command);
             match command.as_bytes() {
                 b"PASV" => self.set_passive().await?,
                 b"PWD" => self.print_working_directory().await?,
@@ -135,7 +143,6 @@ impl FTPSession {
                     _ => self.unknown_command().await?,
                 },
             }
-            // 执行单条指令后强制刷新缓冲区
             self.control_stream.flush().await?;
         }
     }

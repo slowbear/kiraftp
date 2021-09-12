@@ -1,16 +1,15 @@
 // Copyright 2021 Slowy <slowyfine@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use super::{FTPSession, IOResult, TransferMod};
+use super::{FTPSession, TransferMod};
 use crate::utils::net::{parse_ipv4_addr, print_ipv4_addr};
 use slog::debug;
 use std::net::SocketAddr;
 use tokio::{io::AsyncWriteExt, net::TcpListener};
 
 impl FTPSession {
-    // 主动模式
-    pub async fn set_active(&mut self, remote: &str) -> IOResult {
-        if !self.is_loggined {
+    pub async fn set_active(&mut self, remote: &str) -> tokio::io::Result<()> {
+        if !self.is_logged_in {
             self.control_stream
                 .write(b"530 Please login with USER and PASS.\r\n")
                 .await?;
@@ -34,9 +33,9 @@ impl FTPSession {
         };
         Ok(())
     }
-    // 被动模式
-    pub async fn set_passive(&mut self) -> IOResult {
-        if !self.is_loggined {
+
+    pub async fn set_passive(&mut self) -> tokio::io::Result<()> {
+        if !self.is_logged_in {
             self.control_stream
                 .write(b"530 Please login with USER and PASS.\r\n")
                 .await?;

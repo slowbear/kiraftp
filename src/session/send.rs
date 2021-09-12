@@ -1,7 +1,7 @@
 // Copyright 2021 Slowy <slowyfine@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use super::{FTPSession, IOResult, TransferMod, TransferType};
+use super::{FTPSession, TransferMod, TransferType};
 use slog::error;
 use std::net::SocketAddr;
 use tokio::{
@@ -11,8 +11,8 @@ use tokio::{
 };
 
 impl FTPSession {
-    pub async fn send(&mut self, path: &str) -> IOResult {
-        if !self.is_loggined {
+    pub async fn send(&mut self, path: &str) -> tokio::io::Result<()> {
+        if !self.is_logged_in {
             self.control_stream
                 .write(b"530 Please login with USER and PASS.\r\n")
                 .await?;
@@ -32,7 +32,7 @@ impl FTPSession {
                             if let Err(err) = self.send_inner(path, &mut data_stream).await {
                                 error!(self.logger, "Error during RETR: {}", err);
                                 self.control_stream
-                                    .write(b"426 Tansfer aborted.\r\n")
+                                    .write(b"426 Transfer aborted.\r\n")
                                     .await?;
                             } else {
                                 self.control_stream
@@ -63,7 +63,7 @@ impl FTPSession {
                     if let Err(err) = self.send_inner(path, &mut data_stream).await {
                         error!(self.logger, "Error during send: {}", err);
                         self.control_stream
-                            .write(b"426 Tansfer aborted.\r\n")
+                            .write(b"426 Transfer aborted.\r\n")
                             .await?;
                     } else {
                         self.control_stream
@@ -74,7 +74,7 @@ impl FTPSession {
                 Err(err) => {
                     error!(self.logger, "Unexpected data connection: {}", err);
                     self.control_stream
-                        .write(b"426 Tansfer aborted.\r\n")
+                        .write(b"426 Transfer aborted.\r\n")
                         .await?;
                 }
             },
@@ -84,30 +84,30 @@ impl FTPSession {
                     .await?;
             }
         }
-        // 一次性链接
         self.transfer_mode = TransferMod::Disable;
         Ok(())
     }
 
-    pub async fn send_inner(&mut self, path: &str, data_stream: &mut TcpStream) -> IOResult {
+    pub async fn send_inner(
+        &mut self,
+        path: &str,
+        data_stream: &mut TcpStream,
+    ) -> tokio::io::Result<()> {
         let mut file = OpenOptions::new()
             .read(true)
             .open(self.current_path.join(path))
             .await?;
         match self.transfer_type {
-            TransferType::ASCII => {
+            TransferType::Ascii => {
                 let mut buffer = [0; 32768];
                 loop {
                     let len = file.read(&mut buffer).await?;
                     if len == 0 {
                         break;
                     }
-                    for &byte in buffer[..len].iter() {
-                        if byte == b'\n' {
-                            data_stream.write(b"\r\n").await?;
-                        } else {
-                            data_stream.write(&[byte]).await?;
-                        }
+                    for chunk in buffer[..len].split(|&x| x == b'\n') {
+                        data_stream.write_all(chunk).await?;
+                        data_stream.write_all(b"\r\n").await?;
                     }
                 }
             }

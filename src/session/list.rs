@@ -1,7 +1,7 @@
 // Copyright 2021 Slowy <slowyfine@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use super::{FTPSession, IOResult, TransferMod};
+use super::{FTPSession, TransferMod};
 use crate::utils::fs::display;
 use slog::error;
 use std::net::SocketAddr;
@@ -12,8 +12,8 @@ use tokio::{
 };
 
 impl FTPSession {
-    pub async fn list(&mut self, opts: &str) -> IOResult {
-        if !self.is_loggined {
+    pub async fn list(&mut self, opts: &str) -> tokio::io::Result<()> {
+        if !self.is_logged_in {
             self.control_stream
                 .write(b"530 Please login with USER and PASS.\r\n")
                 .await?;
@@ -87,12 +87,15 @@ impl FTPSession {
                     .await?;
             }
         }
-        // 一次性链接
         self.transfer_mode = TransferMod::Disable;
         Ok(())
     }
 
-    pub async fn list_inner(&mut self, path: &str, data_stream: &mut TcpStream) -> IOResult {
+    pub async fn list_inner(
+        &mut self,
+        path: &str,
+        data_stream: &mut TcpStream,
+    ) -> tokio::io::Result<()> {
         let path = self.current_path.join(path);
         let mut dir = fs::read_dir(path).await?;
         while let Some(item) = dir.next_entry().await? {
