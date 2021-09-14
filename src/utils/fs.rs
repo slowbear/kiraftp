@@ -19,9 +19,9 @@ pub async fn display(item: &DirEntry) -> Option<String> {
         Ok(metadata) => {
             let mode = parse_permissions(metadata.permissions().mode());
             let nlink = metadata.nlink();
-            let user = users::get_user_by_uid(metadata.uid()).unwrap();
+            let user = users::get_user_by_uid(metadata.uid())?;
             let user = user.name().to_string_lossy();
-            let group = users::get_group_by_gid(metadata.gid()).unwrap();
+            let group = users::get_group_by_gid(metadata.gid())?;
             let group = group.name().to_string_lossy();
             let size = metadata.size();
             let modified = DateTime::<Local>::from(metadata.modified().unwrap())
